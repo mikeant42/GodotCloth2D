@@ -32,6 +32,10 @@ namespace Cloth
         public bool debugFollowMouse = true;
         [Export]
         public float scaling = 15;
+        [Export]
+        public bool debugDrawGrid = true;
+        [Export]
+        public float damping = 1;
 
 
         // Called when the node enters the scene tree for the first time.
@@ -46,12 +50,13 @@ namespace Cloth
             timer.WaitTime = refreshRate;
             AddChild(timer);
             timer.Start();
-            
+
             
         }
 
         public void _OnTimeout()
         {
+            //CreateAlphaShape();
             Verlet();
             SatisfyConstraints();
             SatisfyConstraints();
@@ -65,30 +70,27 @@ namespace Cloth
 
         }
 
+        public void Follow(Vector2 points, float distanceScale = 10)
+        {
+            for (int i = 0; i < rows; i++)
+            {
+                grid[i,0].currentPos = new Vector2((points.x+distanceScale*i+1)/scaling, (points.y)/scaling);
+            }
+        }
+
         private void FollowMouse()
         {
             Vector2 mousePos = GetLocalMousePosition();
-            float distance = 300;
-
-            float x = Mathf.Lerp(Transform.origin.x, mousePos.x, 0.2f);
-            float y = Mathf.Lerp(Transform.origin.y, mousePos.y, 0.2f);
-
-            grid[0,0].currentPos = new Vector2(mousePos.x/scaling,(mousePos.y)/scaling);
-            grid[0,0].previousPos = grid[0,0].currentPos;
-            
-             grid[rows/2,0].currentPos = new Vector2((mousePos.x+(distance/2))/scaling,(mousePos.y)/scaling);
-             grid[rows/2,0].previousPos = grid[4,0].currentPos;
-
-            grid[rows-1,0].currentPos = new Vector2((mousePos.x+distance)/scaling,(mousePos.y)/scaling);
-            grid[rows-1,0].previousPos = grid[rows-1,0].previousPos;
+            Follow(mousePos);
         }
         
 
         public override void _Draw()
         {
             SortGridForDrawing();
+            //CreateAlphaShape();
             CreateMesh();   
-
+            
         }
 
         private void CreateMesh()
@@ -110,7 +112,7 @@ namespace Cloth
                 polygon.Add(new Vector2((float)point.x,(float)point.y));
                 uvs.Add(new Vector2((float)point.x / 10, (float)point.y / 10));
             }
-            Polygon = (polygon.ToArray());
+            //Polygon = (polygon.ToArray());
             //Uv = uvs.ToArray();
 
 
@@ -121,6 +123,67 @@ namespace Cloth
             
            
         }
+
+        // private void AddEdge(int[] mesh, List<Vector2> edges, List<Vector2> edge_points, Vector2 coords)
+        // {
+        //     // if (edges.Contains(coords))
+        //     // {
+        //     //     return;
+        //     // }
+
+        //     edges.Add(coords);
+        //     edge_points.Add(drawPoints[mesh[(int)coords.x]]);
+        //     edge_points.Add(drawPoints[mesh[(int)coords.y]]);
+
+        // }
+
+        // private void CreateAlphaShape()
+        // {
+        //     float alpha = 1f;
+
+        //     int[] mesh = Geometry.TriangulateDelaunay2d(drawPoints.ToArray());
+            
+        //     List<Vector2> edges = new List<Vector2>();
+        //     List<Vector2> edge_points = new List<Vector2>();
+
+        //     for (int i = 0; i < mesh.Length; i+=3)
+        //     {
+        //         //if (i+2 <= drawPoints.Count-1)
+        //         //{
+        //             //GD.Print("hhhhh");
+        //             var pa = drawPoints[mesh[i]] / scaling;
+        //             var pb = drawPoints[mesh[i+1]] / scaling;
+        //             var pc = drawPoints[mesh[i+2]] / scaling;
+
+        //             // Lengths of sides of triangle
+        //             var a = Math.Sqrt(Math.Pow(pa.x-pb.x, 2) + Math.Pow(pa.y-pb.y, 2));
+        //             var b = Math.Sqrt(Math.Pow(pb.x-pc.x, 2) + Math.Pow(pb.y-pc.y, 2));
+        //             var c = Math.Sqrt(Math.Pow(pc.x-pa.x, 2) + Math.Pow(pc.y-pa.y, 2));
+
+        //             // Semiperimeter of triangle
+        //             var s = (a+b+c)/2.0f;
+        //             // Area of triangle
+        //             var area = Math.Sqrt(s*(s-a)*(s-b)*(s-c));
+        //             var circum_r = a*b*c/(4.0*area);
+
+        //             if (circum_r < 1.0f / alpha)
+        //             {
+        //                 GD.Print("egvdrv");
+        //                 AddEdge(mesh, edges, edge_points, new Vector2(i, i+1));
+        //                 AddEdge(mesh, edges, edge_points, new Vector2(i+1, i+2));
+        //                 AddEdge(mesh, edges, edge_points, new Vector2(i+2, i));
+        //             }
+        //         //}
+        //     }
+
+        //     foreach (var edge in edge_points)
+        //     {
+        //         DrawCircle(edge, 2, new Color(1,0,0));
+        //     }
+
+            
+
+        // }
 
 
         private void SortGridForDrawing()
@@ -143,10 +206,12 @@ namespace Cloth
                         
                         Vector2 toLine = new Vector2(point.currentPos.x*scaling, point.currentPos.y*scaling);
 
-                        //DrawLine(particle.pixelPosition, toLine, new Color(1,0,0));
+                        
+                        if (debugDrawGrid)
+                            DrawLine(particle.pixelPosition, toLine, new Color(0,0,0));
                         drawPoints.Add(particle.pixelPosition);
                         //drawUvs.Add(particle.pixelPosition / 10);
-                        drawUvs.Add(toLine);       
+                        drawUvs.Add(toLine);
                         
                     }
                     Particle prevParticle = particle;
@@ -176,7 +241,7 @@ namespace Cloth
                     particle.currentPos = currentPos;
                     particle.previousPos = currentPos;
                     particle.forces = new Vector2(0, gravity);
-                    particle.restLength = 1;
+                    particle.restLength = 1f;
                     particle.listPosition = new Vector2(x,y);
                     particle.stuck = false;
                     particle.pixelPosition = new Vector2(0,0);
@@ -191,13 +256,13 @@ namespace Cloth
             {
                 for (int y = 0; y < grid.GetLength(1); y++)
                 {
-                    List<Vector2> neighbors = findNeighbors(grid[x,y].listPosition, grid);
+                    List<Vector2> neighbors = FindNeighbors(grid[x,y].listPosition, grid);
                     grid[x,y].neighbors = neighbors;
                 }
             }
         }
 
-        private List<Vector2> findNeighbors(Vector2 pointPosition, Particle[,] grid)
+        private List<Vector2> FindNeighbors(Vector2 pointPosition, Particle[,] grid)
         {
             int columnLimit = grid.GetLength(1);
             int rowLimit = grid.GetLength(0);
@@ -257,6 +322,11 @@ namespace Cloth
                         var fmultbytime = new Vector2(f.x*timeStep*timeStep, f.y*timeStep*timeStep);
                         var tempminusp_p = new Vector2(c_p.x-p_p.x, c_p.y-p_p.y);
                         var together = new Vector2(fmultbytime.x+tempminusp_p.x, fmultbytime.y+tempminusp_p.y);
+
+                        // Simple multiplier for damping
+                        together.x *= damping;
+                        together.y *= damping;
+
                         c_p = new Vector2(c_p.x+together.x, c_p.y+together.y);
 
                         particle.currentPos = c_p;
@@ -268,6 +338,7 @@ namespace Cloth
 
         private void SatisfyConstraints()
         {
+            float m = 0.5f;
             for (int x = 0; x < grid.GetLength(0); x++)
             {
                 for (int y = 0; y < grid.GetLength(1); y++)
@@ -285,7 +356,7 @@ namespace Cloth
                             float deltaLength = (float)Math.Sqrt(Math.Pow((c2.x-c1.x),2) + Math.Pow((c2.y-c1.y),2));
                             float diff = (deltaLength - 1.0f) / deltaLength;
 
-                            var dtemp = new Vector2(delta.x*0.5f*diff, delta.y*0.5f*diff);
+                            var dtemp = new Vector2(delta.x*m*diff, delta.y*m*diff);
 
                             c1.x += dtemp.x;
                             c1.y += dtemp.y;
