@@ -16,16 +16,16 @@ namespace Cloth
         private List<Vector2> drawUvs;
 
         [Export]
-        public int rows = 4;
+        public int rows = 10;
         [Export]
-        public int columns = 8;
+        public int columns = 10;
 
         private Timer timer;
 
         [Export]
         public float refreshRate = 0.01f;
         [Export]
-        public float timeStep = 1.5f;
+        public float timeStep = 3f;
         [Export]
         public float gravity = 0.005f;
         [Export]
@@ -60,6 +60,7 @@ namespace Cloth
             Verlet();
             SatisfyConstraints();
             SatisfyConstraints();
+            SatisfyConstraints();
         }
 
         public override void _Process(float delta)
@@ -70,18 +71,23 @@ namespace Cloth
 
         }
 
-        public void Follow(Vector2 points, float distanceScale = 10)
+        public void Follow(Vector2 points, float distanceScale = 3, int numRows = 1)
         {
             for (int i = 0; i < rows; i++)
             {
-                grid[i,0].currentPos = new Vector2((points.x+distanceScale*i+1)/scaling, (points.y)/scaling);
+                for (int j = 0; j < numRows; j++)
+                {
+                    grid[i,j].currentPos = new Vector2((points.x+distanceScale*(i-1))/scaling, (points.y+distanceScale*(j-1))/scaling);
+                }
             }
+
         }
 
         private void FollowMouse()
         {
-            Vector2 mousePos = GetLocalMousePosition();
-            Follow(mousePos);
+            Vector2 mousePos = GetGlobalMousePosition();
+            //GD.Print(mousePos);
+            Follow(mousePos, rows+4);
         }
         
 
@@ -109,11 +115,12 @@ namespace Cloth
 
             foreach (var point in hull)
             {
-                polygon.Add(new Vector2((float)point.x,(float)point.y));
+                // ToLocal helps interface with other Godot 2D nodes
+                polygon.Add(ToLocal(new Vector2((float)point.x,(float)point.y)));
                 uvs.Add(new Vector2((float)point.x / 10, (float)point.y / 10));
             }
-            //Polygon = (polygon.ToArray());
-            //Uv = uvs.ToArray();
+            Polygon = (polygon.ToArray());
+            Uv = uvs.ToArray();
 
 
             drawPoints.Clear();
@@ -208,10 +215,10 @@ namespace Cloth
 
                         
                         if (debugDrawGrid)
-                            DrawLine(particle.pixelPosition, toLine, new Color(0,0,0));
+                            DrawLine(ToLocal(particle.pixelPosition), ToLocal(toLine), new Color(0,0,0));
                         drawPoints.Add(particle.pixelPosition);
-                        //drawUvs.Add(particle.pixelPosition / 10);
-                        drawUvs.Add(toLine);
+                        drawUvs.Add(particle.pixelPosition / 10);
+                        //drawUvs.Add(toLine);
                         
                     }
                     Particle prevParticle = particle;
